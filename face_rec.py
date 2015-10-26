@@ -15,15 +15,16 @@ TEST_LIST = 'subjects_test.lst'
 
 class FaceRec:
 
-    # Classifier
-    clf = svm.LinearSVC()  # one versus rest train only one class
+    def __init__(self):
+        # Classifier
+        self.clf = svm.LinearSVC()  # one versus rest train only one class
 
-    # PCA
-    pca = decomposition.PCA(n_components=3)
+        # PCA
+        self.pca = decomposition.PCA(n_components=.5)
 
-    # Features
-    features = 0
-    targets = 0
+        # Features
+        self.features = []
+        self.targets = []
 
     def get_pca_features(self):
         # Get the list of images
@@ -44,41 +45,66 @@ class FaceRec:
 
         X = []
         # Read each image for PCA
-        for img_name in img_list[:10]:
+        for img_name in img_list[:20]:
             img = cv2.imread(img_name, cv2.IMREAD_GRAYSCALE)
             cv2.imshow('image', img)
 
             # Calculate the lbp histograms
-            features = lbp.circular_lbp(img)
+            features = lbp.circular_lbp(img, 2, 8)
             cv2.imshow('LBP', np.int8(features))
 
             # separate the image into grids and get histograms
             block_size = (3, 3)
             sizex, sizey = features.shape
 
+            hists = []
             for i in range(0, sizex, block_size[0]):
                 for j in range(0, sizey, block_size[1]):
-                    X.append(np.bincount(
+                    hists.append(np.bincount(
                         features[i:i+block_size[0], j:j+block_size[1]].ravel(),
                         minlength=256))
+            X.append(np.array(hists).ravel())
+            print np.array(X).shape
 
-        print np.array(X).shape
-        self.features = np.array(X)
-        print self.X
         # Train the Classifier
-        self.pca.fit(np.array(X))
+        self.features = self.pca.fit_transform(np.array(X)).tolist()
+        self.targets = y[:20]
+        print len(self.features)
 
-    def train(self, X=features, y=targets):
-        X = np.asarray(X)
-        print X
-        y = np.asarray(y)
+    def train(self, X=None, y=None):
+        if X is None:
+            X = np.asarray(self.features)
+        if y is None:
+            y = np.asarray(self.targets)
+        print 'train', X.shape
+        print 'train y', y.shape
         self.clf.fit(X, y)
 
     def test(self, img):
-        features = lbp.circular_lbp(img)
-        X = self.pca.transfrom(features)
+        features = lbp.circular_lbp(img, 2, 8)
+        hists = []
+        block_size = (3, 3)
+        sizex, sizey = features.shape
+        X = []
+        for i in range(0, sizex, block_size[0]):
+                for j in range(0, sizey, block_size[1]):
+                    hists.append(np.bincount(
+                        features[i:i+block_size[0], j:j+block_size[1]].ravel(),
+                        minlength=256))
+        X.append(np.array(hists).ravel())
+        X = self.pca.transform(np.array(X))
+        print X
         prediction = self.clf.predict(X.ravel())
         return prediction
+
+    def pickle(self):
+        with open('face_rec.pkl', 'wb') as output:
+            pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
+
+    @staticmethod
+    def unpickle():
+        with open('face_rec.pkl', 'rb') as input:
+            return pickle.load(input)
 
 
 # ==================================================
@@ -89,31 +115,51 @@ class FaceRec:
 facerec = FaceRec()
 loading = False
 
+if len(sys.argv) < 2:
+    print '''
+        USAGE:
+        -t Train the face recognition object
+        -l load a face recognition object
+        '''
+    sys.exit()
+
 if(str(sys.argv[1]) == '-l'):
     loading = True
 
 # PCA
 if loading:
     print 'loaded pre-trained human detector'
-    with open('face_rec_pca.pkl', 'rb') as input:
-        facerec.pca = pickle.load(input)
-    with open('face_rec_X.pkl', 'rb') as input:
-        facerec.features = pickle.load(input)
+    facerec = FaceRec.unpickle()
 else:
     facerec.get_pca_features()
-    with open('face_rec_pca.pkl', 'wb') as output:
-            pickle.dump(facerec.pca, output, pickle.HIGHEST_PROTOCOL)
-    with open('face_rec_X.pkl', 'wb') as output:
-        pickle.dump(facerec.features, output, pickle.HIGHEST_PROTOCOL)
-
-# Train the classifier
-facerec.train()
-
-# Load a test image
+    facerec.train()
+    facerec.pickle()
 
 print facerec.pca
 
-# Read images for testing=
+# Load a test image
+target = ''
+test_list = []
+with open(IMAGE_PATH + TEST_LIST, 'r') as f:
+                while True:
+                    filename = f.readline()
+                    # Zero length indicates EOF
+                    if len(filename) == 0:
+                        break
+                    filename = filename.rstrip()
+                    target = filename.split('.')[0]
+
+                    # get filename without return
+                    test_list.append(IMAGE_PATH + 'test/' + filename)
+
+# Read images for testing
+for img_name in test_list[:5]:
+    img = cv2.imread(img_name, cv2.IMREAD_GRAYSCALE)
+    cv2.imshow('Test image', img)
+    prediction = facerec.test(img)
+    print prediction
+cv2.waitKey(0)
+
 
 
 
