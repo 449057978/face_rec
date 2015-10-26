@@ -44,7 +44,7 @@ def circular_lbp(img, radius=1, neighbors=8):
     C = np.asarray(img[origy:origy+dy, origx:origx+dx], dtype=np.uint8)
 
     # image with LBPs
-    result = np.zeros((dy, dx), dtype=np.uint32)
+    result = np.zeros((dy, dx), dtype=np.int32)
 
     # loop through every sample and
     # compare with all center points in image
