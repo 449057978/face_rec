@@ -123,7 +123,7 @@ class FaceRec:
                         minlength=256))
         X.append(np.array(hists).ravel())
         X = self.pca.transform(np.array(X))
-        prediction = self.clf.predict(X.ravel())
+        prediction = self.clf.predict(X)
         return prediction
 
     def pickle(self):
